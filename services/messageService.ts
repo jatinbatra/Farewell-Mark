@@ -1,5 +1,5 @@
 
-import { supabase } from '../supabase';
+import { supabase, isSupabaseConfigured } from '../supabase';
 import { Message, Category } from '../types';
 
 const USER_KEY = 'farewell_mark_user_id';
@@ -15,6 +15,8 @@ export const messageService = {
   },
 
   getMessages: async (): Promise<Message[]> => {
+    if (!isSupabaseConfigured) return [];
+    
     const { data, error } = await supabase
       .from('messages')
       .select('*')
@@ -27,7 +29,7 @@ export const messageService = {
     
     return (data || []).map(m => ({
       ...m,
-      leadershipPrinciple: m.leadership_principle, // map snake_case to camelCase
+      leadershipPrinciple: m.leadership_principle,
       authorId: m.author_id,
       mediaUrl: m.media_url,
       mediaType: m.media_type
@@ -35,6 +37,8 @@ export const messageService = {
   },
 
   addMessage: async (message: Omit<Message, 'id' | 'timestamp' | 'rotation' | 'authorId'>): Promise<Message | null> => {
+    if (!isSupabaseConfigured) return null;
+    
     const authorId = messageService.getUserId();
     const timestamp = Date.now();
     const rotation = (Math.random() * 4) - 2;
@@ -71,9 +75,9 @@ export const messageService = {
   },
 
   updateMessage: async (id: string, updatedData: Partial<Message>): Promise<Message | null> => {
-    const userId = messageService.getUserId();
+    if (!isSupabaseConfigured) return null;
     
-    // Map camelCase to snake_case for Supabase
+    const userId = messageService.getUserId();
     const payload: any = { ...updatedData };
     if (updatedData.leadershipPrinciple) payload.leadership_principle = updatedData.leadershipPrinciple;
     if (updatedData.mediaUrl) payload.media_url = updatedData.mediaUrl;
@@ -83,7 +87,7 @@ export const messageService = {
       .from('messages')
       .update(payload)
       .eq('id', id)
-      .eq('author_id', userId) // Security: only author can edit
+      .eq('author_id', userId)
       .select()
       .single();
 
@@ -102,6 +106,8 @@ export const messageService = {
   },
 
   deleteMessage: async (id: string): Promise<boolean> => {
+    if (!isSupabaseConfigured) return false;
+    
     const userId = messageService.getUserId();
     const { error } = await supabase
       .from('messages')
@@ -117,6 +123,8 @@ export const messageService = {
   },
 
   uploadMedia: async (file: File): Promise<string | null> => {
+    if (!isSupabaseConfigured) return null;
+    
     const fileExt = file.name.split('.').pop();
     const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `tributes/${fileName}`;

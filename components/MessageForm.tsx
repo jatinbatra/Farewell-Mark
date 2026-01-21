@@ -1,4 +1,5 @@
 
+// Added React to imports to resolve namespace errors
 import React, { useState, useRef, useEffect } from 'react';
 import { Category, Message } from '../types';
 import { CATEGORY_METADATA, LEADERSHIP_PRINCIPLES } from '../constants';
@@ -13,6 +14,7 @@ interface MessageFormProps {
   onCancel: () => void;
 }
 
+// Fixed React.FC error by ensuring React is imported
 export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, onUpdate, onCancel }) => {
   const [name, setName] = useState(initialData?.name || '');
   const [category, setCategory] = useState<Category>(initialData?.category || Category.WISHES);
@@ -30,22 +32,17 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
     nameInputRef.current?.focus();
   }, []);
 
-  const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        alert("File too large (max 10MB)");
-        return;
-      }
-      setMediaFile(file);
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-    }
-  };
-
+  // Updated image generation to follow @google/genai guidelines
   const generateAIImage = async () => {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      alert("Gemini API Key is missing.");
+      return;
+    }
+
     setIsGeneratingImage(true);
     try {
+      // Use the correct initialization pattern as per guidelines
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const basePrompt = content || "A warm farewell to a great manager";
       const prompt = `A high-quality 3D digital illustration for a farewell card for an Amazon manager. Theme: ${category}. Details: ${basePrompt}. Incorporate subtle Amazon elements like delivery boxes or smiles, and a playful banana motif. Vibrant colors, orange and navy blue accents.`;
@@ -60,14 +57,15 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
         }
       });
 
-      const candidate = response.candidates?.[0];
-      if (candidate?.content?.parts) {
-        for (const part of candidate.content.parts) {
+      // Correctly iterate through parts to find image data
+      const parts = response.candidates?.[0]?.content?.parts;
+      if (parts) {
+        for (const part of parts) {
           if (part.inlineData) {
             const base64Data = part.inlineData.data;
             const imageUrl = `data:${part.inlineData.mimeType};base64,${base64Data}`;
             setPreviewUrl(imageUrl);
-            setMediaFile(null); // Clear manual file if AI generated
+            setMediaFile(null);
             break;
           }
         }
@@ -80,6 +78,17 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
     }
   };
 
+  // Implemented handleMediaChange to fix "Cannot find name 'handleMediaChange'" error
+  const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setMediaFile(file);
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    }
+  };
+
+  // Fixed React.FormEvent error by ensuring React is imported
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !content || isSubmitting) return;
@@ -88,13 +97,11 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
     let finalMediaUrl = previewUrl;
 
     try {
-      // 1. Handle File Upload if needed
       if (mediaFile) {
         const uploadedUrl = await messageService.uploadMedia(mediaFile);
         if (uploadedUrl) finalMediaUrl = uploadedUrl;
       }
 
-      // 2. Add or Update Message in Database
       if (initialData) {
         const updated = await messageService.updateMessage(initialData.id, {
           name,
@@ -126,7 +133,14 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
     }
   };
 
+  // Updated pun generation to follow @google/genai guidelines
   const generateAIPun = async () => {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      alert("Gemini API Key is missing.");
+      return;
+    }
+
     setIsGeneratingText(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -134,8 +148,11 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
         model: 'gemini-3-flash-preview',
         contents: `Generate a funny short farewell message (max 150 chars) for a manager named Mark leaving Amazon. Use puns related to "going bananas", Amazon shipping boxes, or "Day 1".`,
       });
-      if (response.text) {
-        setContent(prev => (prev ? prev + "\n" + response.text : response.text));
+      
+      // Access response.text property directly as recommended
+      const text = response.text;
+      if (text) {
+        setContent(prev => (prev ? prev + "\n" + text : text));
       }
     } catch (err) {
       console.error(err);

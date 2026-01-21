@@ -2,13 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { Box, Smile } from 'lucide-react';
+import { Box, Smile, AlertCircle, ExternalLink, Settings } from 'lucide-react';
 import { Layout } from './components/Layout';
 import { Hero } from './components/Hero';
 import { MessageForm } from './components/MessageForm';
 import { MessageGrid } from './components/MessageGrid';
 import { messageService } from './services/messageService';
-import { supabase } from './supabase';
+import { supabase, isSupabaseConfigured } from './supabase';
 import { Message, Category } from './types';
 
 const App: React.FC = () => {
@@ -19,11 +19,21 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setIsLoading(false);
+      return;
+    }
+
     const loadMessages = async () => {
       setIsLoading(true);
-      const data = await messageService.getMessages();
-      setMessages(data);
-      setIsLoading(false);
+      try {
+        const data = await messageService.getMessages();
+        setMessages(data);
+      } catch (err) {
+        console.error("Failed to load messages:", err);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     loadMessages();
@@ -61,12 +71,58 @@ const App: React.FC = () => {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (supabase) supabase.removeChannel(channel);
     };
   }, []);
 
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="min-h-screen bg-[#232F3E] flex items-center justify-center p-6 text-white font-sans">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 text-[#232F3E]">
+          <div className="flex justify-center mb-6">
+            <div className="bg-orange-100 p-4 rounded-full">
+              <Settings className="w-12 h-12 text-[#FF9900] animate-spin-slow" />
+            </div>
+          </div>
+          <h1 className="text-2xl font-bold text-center mb-4">Configuration Required</h1>
+          <p className="text-gray-600 text-center mb-8">
+            To enable the live tribute board, you need to add your Supabase credentials to your environment variables.
+          </p>
+          
+          <div className="space-y-4 mb-8">
+            <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+              <AlertCircle className="w-5 h-5 text-orange-500 mt-0.5 shrink-0" />
+              <div className="text-sm">
+                <p className="font-bold">SUPABASE_URL</p>
+                <p className="text-gray-500">Missing from environment</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+              <AlertCircle className="w-5 h-5 text-orange-500 mt-0.5 shrink-0" />
+              <div className="text-sm">
+                <p className="font-bold">SUPABASE_ANON_KEY</p>
+                <p className="text-gray-500">Missing from environment</p>
+              </div>
+            </div>
+          </div>
+
+          <a 
+            href="https://supabase.com" 
+            target="_blank" 
+            className="w-full flex items-center justify-center gap-2 bg-[#FF9900] text-white py-4 rounded-xl font-bold hover:bg-[#E68A00] transition-all shadow-lg"
+          >
+            Setup Supabase <ExternalLink className="w-4 h-4" />
+          </a>
+          
+          <p className="mt-6 text-xs text-center text-gray-400 italic">
+            Add these keys to Vercel and redeploy to see the magic.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const handleAddMessage = (newMessage: Message) => {
-    // Real-time listener will handle the local state update
     setIsFormOpen(false);
     
     const isBanana = newMessage.content.toLowerCase().includes('banana');

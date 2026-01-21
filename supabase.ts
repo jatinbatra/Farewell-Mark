@@ -1,13 +1,21 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
+// Helper to safely access process.env without crashing if process is undefined
+const getEnv = (key: string): string => {
+  try {
+    return (typeof process !== 'undefined' && process.env) ? process.env[key] || '' : '';
+  } catch {
+    return '';
+  }
+};
 
-// If keys aren't provided, we'll log a warning but the app won't crash 
-// (it will just fail to fetch until keys are added to Vercel)
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("Supabase credentials missing! Please add SUPABASE_URL and SUPABASE_ANON_KEY to your environment variables.");
-}
+// Use provided keys as fallbacks if environment variables are not set
+const supabaseUrl = getEnv('SUPABASE_URL') || 'https://zsxkjdvzxseslxskbnas.supabase.co';
+const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpzeGtqZHZ6eHNlc2x4c2tibmFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMTg4MDgsImV4cCI6MjA4NDU5NDgwOH0.tQ9qE7G9ezO8L5cqXojM-X_uQCIQfgzJuOKKO9rLpis';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('YOUR_'));
+
+export const supabase = isSupabaseConfigured 
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null as any;
