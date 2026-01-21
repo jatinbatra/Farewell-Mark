@@ -3,7 +3,7 @@ import React from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Message } from '../types';
 import { CATEGORY_METADATA } from '../constants';
-import { mockDb } from '../services/mockDb';
+import { messageService } from '../services/messageService';
 import { Play, Pencil, Trash2, User } from 'lucide-react';
 
 interface MessageCardProps {
@@ -14,7 +14,7 @@ interface MessageCardProps {
 
 export const MessageCard: React.FC<MessageCardProps> = ({ message, onEdit, onDelete }) => {
   const { icon } = CATEGORY_METADATA[message.category];
-  const isAuthor = message.authorId === mockDb.getUserId();
+  const isAuthor = message.authorId === messageService.getUserId();
   
   return (
     <div 
@@ -76,12 +76,14 @@ export const MessageCard: React.FC<MessageCardProps> = ({ message, onEdit, onDel
         <div className="mb-4 rounded-lg overflow-hidden bg-black/5 relative group/media">
           {message.mediaType === 'video' ? (
             <div className="relative aspect-video flex items-center justify-center bg-gray-900">
-              <video src={message.mediaUrl} className="w-full h-full object-cover opacity-80" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                 <div className="w-12 h-12 bg-white/30 backdrop-blur rounded-full flex items-center justify-center group-hover/media:scale-110 transition-all">
-                    <Play className="w-6 h-6 text-white fill-white" />
-                 </div>
-              </div>
+              <video src={message.mediaUrl} className="w-full h-full object-cover opacity-80" controls />
+              {!message.mediaUrl && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                   <div className="w-12 h-12 bg-white/30 backdrop-blur rounded-full flex items-center justify-center group-hover/media:scale-110 transition-all">
+                      <Play className="w-6 h-6 text-white fill-white" />
+                   </div>
+                </div>
+              )}
             </div>
           ) : (
             <img 

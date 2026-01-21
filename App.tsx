@@ -7,7 +7,8 @@ import { Layout } from './components/Layout';
 import { Hero } from './components/Hero';
 import { MessageForm } from './components/MessageForm';
 import { MessageGrid } from './components/MessageGrid';
-import { mockDb } from './services/mockDb';
+import { messageService } from './services/messageService';
+import { supabase } from './supabase';
 import { Message, Category } from './types';
 
 const App: React.FC = () => {
@@ -15,23 +16,64 @@ const App: React.FC = () => {
   const [filter, setFilter] = useState<Category | 'All'>('All');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    mockDb.seedIfEmpty();
-    setMessages(mockDb.getMessages());
+    const loadMessages = async () => {
+      setIsLoading(true);
+      const data = await messageService.getMessages();
+      setMessages(data);
+      setIsLoading(false);
+    };
+
+    loadMessages();
+
+    // Set up Realtime Subscription
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'messages' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newMessage = {
+              ...payload.new,
+              leadershipPrinciple: payload.new.leadership_principle,
+              authorId: payload.new.author_id,
+              mediaUrl: payload.new.media_url,
+              mediaType: payload.new.media_type
+            } as Message;
+            setMessages(prev => [newMessage, ...prev]);
+          } else if (payload.eventType === 'DELETE') {
+            setMessages(prev => prev.filter(m => m.id !== payload.old.id));
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = {
+              ...payload.new,
+              leadershipPrinciple: payload.new.leadership_principle,
+              authorId: payload.new.author_id,
+              mediaUrl: payload.new.media_url,
+              mediaType: payload.new.media_type
+            } as Message;
+            setMessages(prev => prev.map(m => m.id === updated.id ? updated : m));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleAddMessage = (newMessage: Message) => {
-    setMessages(prev => [newMessage, ...prev]);
+    // Real-time listener will handle the local state update
     setIsFormOpen(false);
     
     const isBanana = newMessage.content.toLowerCase().includes('banana');
-    
     if (isBanana) {
       const duration = 3 * 1000;
       const animationEnd = Date.now() + duration;
       const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100 };
-
       const interval: any = setInterval(function() {
         const timeLeft = animationEnd - Date.now();
         if (timeLeft <= 0) return clearInterval(interval);
@@ -49,16 +91,13 @@ const App: React.FC = () => {
   };
 
   const handleUpdateMessage = (updatedMessage: Message) => {
-    setMessages(prev => prev.map(m => m.id === updatedMessage.id ? updatedMessage : m));
     setIsFormOpen(false);
     setEditingMessage(undefined);
   };
 
-  const handleDeleteMessage = (id: string) => {
+  const handleDeleteMessage = async (id: string) => {
     if (window.confirm('Are you sure you want to remove your message?')) {
-      if (mockDb.deleteMessage(id)) {
-        setMessages(prev => prev.filter(m => m.id !== id));
-      }
+      await messageService.deleteMessage(id);
     }
   };
 
@@ -98,7 +137,10 @@ const App: React.FC = () => {
     : messages.filter(m => m.category === filter);
 
   const getCategoryCount = (cat: Category) => messages.filter(m => m.category === cat).length;
-  const populatedCategories = Object.values(Category).filter(cat => getCategoryCount(cat) > 0);
+  
+  const visibleCategories = Object.values(Category).filter(cat => 
+    getCategoryCount(cat) > 0 || filter === cat
+  );
 
   return (
     <Layout onNavAction={onNavAction}>
@@ -124,7 +166,7 @@ const App: React.FC = () => {
             >
               All ({messages.length})
             </button>
-            {populatedCategories.map(cat => (
+            {visibleCategories.map(cat => (
               <button
                 key={cat}
                 onClick={() => setFilter(cat)}
@@ -152,11 +194,18 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <MessageGrid 
-          messages={filteredMessages} 
-          onEdit={handleEditMessage}
-          onDelete={handleDeleteMessage}
-        />
+        {isLoading ? (
+          <div className="flex justify-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#FF9900]"></div>
+          </div>
+        ) : (
+          <MessageGrid 
+            messages={filteredMessages} 
+            activeFilter={filter}
+            onEdit={handleEditMessage}
+            onDelete={handleDeleteMessage}
+          />
+        )}
 
         <AnimatePresence>
           {isFormOpen && (

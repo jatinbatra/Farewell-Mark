@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Category, Message } from '../types';
 import { CATEGORY_METADATA, LEADERSHIP_PRINCIPLES } from '../constants';
-import { mockDb } from '../services/mockDb';
+import { messageService } from '../services/messageService';
 import { GoogleGenAI } from "@google/genai";
 import { Sparkles, Image as ImageIcon, Loader2 } from 'lucide-react';
 
@@ -20,6 +20,7 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
   const [principle, setPrinciple] = useState(initialData?.leadershipPrinciple || LEADERSHIP_PRINCIPLES[0]);
   const [isGeneratingText, setIsGeneratingText] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(initialData?.mediaUrl || null);
   
@@ -47,7 +48,7 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const basePrompt = content || "A warm farewell to a great manager";
-      const prompt = `A high-quality 3D digital 1K resolution illustration for a farewell card for an Amazon manager. Theme: ${category}. Details: ${basePrompt}. Incorporate subtle Amazon elements like delivery boxes or smiles, and a playful banana motif. Vibrant colors, orange and navy blue accents.`;
+      const prompt = `A high-quality 3D digital illustration for a farewell card for an Amazon manager. Theme: ${category}. Details: ${basePrompt}. Incorporate subtle Amazon elements like delivery boxes or smiles, and a playful banana motif. Vibrant colors, orange and navy blue accents.`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
@@ -66,7 +67,7 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
             const base64Data = part.inlineData.data;
             const imageUrl = `data:${part.inlineData.mimeType};base64,${base64Data}`;
             setPreviewUrl(imageUrl);
-            setMediaFile(null);
+            setMediaFile(null); // Clear manual file if AI generated
             break;
           }
         }
@@ -79,32 +80,49 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !content) return;
+    if (!name || !content || isSubmitting) return;
 
-    if (initialData) {
-      const updated = mockDb.updateMessage(initialData.id, {
-        name,
-        category,
-        content,
-        leadershipPrinciple: principle,
-        color: CATEGORY_METADATA[category].color,
-        mediaUrl: previewUrl || undefined,
-        mediaType: mediaFile?.type.startsWith('video') ? 'video' : (initialData.mediaType || 'image'),
-      });
-      if (updated) onUpdate(updated);
-    } else {
-      const newMessage = mockDb.addMessage({
-        name,
-        category,
-        content,
-        leadershipPrinciple: principle,
-        color: CATEGORY_METADATA[category].color,
-        mediaUrl: previewUrl || undefined,
-        mediaType: mediaFile?.type.startsWith('video') ? 'video' : 'image',
-      });
-      onAdd(newMessage);
+    setIsSubmitting(true);
+    let finalMediaUrl = previewUrl;
+
+    try {
+      // 1. Handle File Upload if needed
+      if (mediaFile) {
+        const uploadedUrl = await messageService.uploadMedia(mediaFile);
+        if (uploadedUrl) finalMediaUrl = uploadedUrl;
+      }
+
+      // 2. Add or Update Message in Database
+      if (initialData) {
+        const updated = await messageService.updateMessage(initialData.id, {
+          name,
+          category,
+          content,
+          leadershipPrinciple: principle,
+          color: CATEGORY_METADATA[category].color,
+          mediaUrl: finalMediaUrl || undefined,
+          mediaType: mediaFile?.type.startsWith('video') ? 'video' : (initialData.mediaType || 'image'),
+        });
+        if (updated) onUpdate(updated);
+      } else {
+        const newMessage = await messageService.addMessage({
+          name,
+          category,
+          content,
+          leadershipPrinciple: principle,
+          color: CATEGORY_METADATA[category].color,
+          mediaUrl: finalMediaUrl || undefined,
+          mediaType: mediaFile?.type.startsWith('video') ? 'video' : 'image',
+        });
+        if (newMessage) onAdd(newMessage);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Something went wrong saving your message.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -227,7 +245,7 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
 
       {previewUrl && (
         <div className="relative group/preview w-32 h-32 rounded-lg overflow-hidden border border-gray-200 shadow-md bg-gray-50">
-           {previewUrl.startsWith('data:video') || (mediaFile && mediaFile.type.startsWith('video')) ? (
+           {(previewUrl.startsWith('data:video') || (mediaFile && mediaFile.type.startsWith('video'))) ? (
              <video src={previewUrl} className="w-full h-full object-cover" />
            ) : (
              <img src={previewUrl} className="w-full h-full object-cover" alt="Preview" />
@@ -246,14 +264,17 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 px-6 py-3 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition-all"
+          disabled={isSubmitting}
+          className="flex-1 px-6 py-3 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="flex-1 px-6 py-3 bg-[#FF9900] hover:bg-[#E68A00] text-white rounded-xl font-bold shadow-lg shadow-orange-200 transition-all transform active:scale-95"
+          disabled={isSubmitting}
+          className="flex-1 px-6 py-3 bg-[#FF9900] hover:bg-[#E68A00] text-white rounded-xl font-bold shadow-lg shadow-orange-200 transition-all transform active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70"
         >
+          {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
           {initialData ? 'Update Message' : 'Add to the Card'}
         </button>
       </div>
