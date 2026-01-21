@@ -63,15 +63,14 @@ const App: React.FC = () => {
         stats={{
           totalMessages: messages.length,
           teamMembers: new Set(messages.map(m => m.name)).size,
-          // Total Tenure: 4 years (1461) + 4 months (~122) + 29 days = 1612 days
           daysAtAmazon: 1612 
         }} 
       />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12 relative z-10 pb-20">
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-          {/* Only show filters if there are at least 2 messages or multiple categories populated */}
-          {messages.length > 1 && populatedCategories.length > 0 && (
+          {/* Only show filter bar if there are messages spread across at least 2 categories */}
+          {populatedCategories.length > 1 ? (
             <div className="flex flex-wrap gap-2 justify-center order-2 md:order-1">
               <button
                 onClick={() => setFilter('All')}
@@ -97,6 +96,8 @@ const App: React.FC = () => {
                 </button>
               ))}
             </div>
+          ) : (
+            <div className="order-2 md:order-1" /> // Spacer
           )}
 
           <div className="order-1 md:order-2 ml-auto">

@@ -1,13 +1,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Category } from '../types';
+import { Category, Message } from '../types';
 import { CATEGORY_METADATA, LEADERSHIP_PRINCIPLES } from '../constants';
 import { mockDb } from '../services/mockDb';
 import { GoogleGenAI } from "@google/genai";
 import { Sparkles, Image as ImageIcon, Loader2 } from 'lucide-react';
 
 interface MessageFormProps {
-  onAdd: (message: any) => void;
+  onAdd: (message: Message) => void;
   onCancel: () => void;
 }
 
@@ -44,8 +44,6 @@ export const MessageForm: React.FC<MessageFormProps> = ({ onAdd, onCancel }) => 
     setIsGeneratingImage(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
-      // Construct a fun, Amazon/Banana themed prompt based on category and content
       const basePrompt = content || "A warm farewell to a great manager";
       const prompt = `A high-quality 3D digital 1K resolution illustration for a farewell card for an Amazon manager. Theme: ${category}. Details: ${basePrompt}. Incorporate subtle Amazon elements like delivery boxes or smiles, and a playful banana motif. Vibrant colors, orange and navy blue accents.`;
 
@@ -66,14 +64,14 @@ export const MessageForm: React.FC<MessageFormProps> = ({ onAdd, onCancel }) => 
             const base64Data = part.inlineData.data;
             const imageUrl = `data:${part.inlineData.mimeType};base64,${base64Data}`;
             setPreviewUrl(imageUrl);
-            setMediaFile(null); // Clear manual upload if AI image is generated
+            setMediaFile(null);
             break;
           }
         }
       }
     } catch (err) {
       console.error("Image generation failed:", err);
-      alert("Failed to generate magic art. Our delivery drones might be busy!");
+      alert("Failed to generate magic art.");
     } finally {
       setIsGeneratingImage(false);
     }
@@ -126,7 +124,7 @@ export const MessageForm: React.FC<MessageFormProps> = ({ onAdd, onCancel }) => 
             required
             value={name}
             onChange={e => setName(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#FF9900] outline-none transition-all text-[#232F3E]"
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#FF9900] outline-none transition-all text-gray-900 bg-white"
             placeholder="e.g. Jeff B."
           />
         </div>
@@ -135,7 +133,7 @@ export const MessageForm: React.FC<MessageFormProps> = ({ onAdd, onCancel }) => 
           <select
             value={category}
             onChange={e => setCategory(e.target.value as Category)}
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#FF9900] outline-none bg-white transition-all text-[#232F3E]"
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#FF9900] outline-none bg-white transition-all text-gray-900"
           >
             {Object.values(Category).map(cat => (
               <option key={cat} value={cat}>{cat}</option>
@@ -164,7 +162,7 @@ export const MessageForm: React.FC<MessageFormProps> = ({ onAdd, onCancel }) => 
             rows={4}
             value={content}
             onChange={e => setContent(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#FF9900] outline-none resize-none transition-all text-[#232F3E]"
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#FF9900] outline-none resize-none transition-all text-gray-900 bg-white"
             placeholder="Write your farewell note here..."
           />
           <div className="absolute bottom-3 right-3 text-xs text-gray-400">
@@ -179,7 +177,7 @@ export const MessageForm: React.FC<MessageFormProps> = ({ onAdd, onCancel }) => 
           <select
             value={principle}
             onChange={e => setPrinciple(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#FF9900] outline-none bg-white text-[#232F3E]"
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#FF9900] outline-none bg-white text-gray-900"
           >
             {LEADERSHIP_PRINCIPLES.map(lp => (
               <option key={lp} value={lp}>{lp}</option>
@@ -206,7 +204,7 @@ export const MessageForm: React.FC<MessageFormProps> = ({ onAdd, onCancel }) => 
                 onChange={handleMediaChange}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               />
-              <div className="h-full border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center text-xs text-gray-500 hover:border-[#FF9900] hover:text-[#FF9900] transition-all">
+              <div className="h-full border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center text-xs text-gray-500 hover:border-[#FF9900] hover:text-[#FF9900] transition-all bg-white">
                 {mediaFile ? mediaFile.name : previewUrl?.startsWith('data:image') ? 'AI Image Generated' : 'Upload Image/GIF/Video'}
               </div>
           </div>
@@ -214,7 +212,7 @@ export const MessageForm: React.FC<MessageFormProps> = ({ onAdd, onCancel }) => 
       </div>
 
       {previewUrl && (
-        <div className="relative group/preview w-32 h-32 rounded-lg overflow-hidden border border-gray-200 shadow-md">
+        <div className="relative group/preview w-32 h-32 rounded-lg overflow-hidden border border-gray-200 shadow-md bg-gray-50">
            {previewUrl.startsWith('data:video') || (mediaFile && mediaFile.type.startsWith('video')) ? (
              <video src={previewUrl} className="w-full h-full object-cover" />
            ) : (

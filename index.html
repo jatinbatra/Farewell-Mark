@@ -4,7 +4,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Farewell Mark Sansbury | Going Bananas Without You</title>
+    <title>Farewell Mark | 4 Years, 4 Months, 29 Days</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,14 +18,10 @@
       .banana-accent {
         font-family: 'Comic Sans MS', 'Chalkboard SE', cursive;
       }
-      .masonry-grid {
-        display: flex;
-        margin-left: -1rem; /* gutter size offset */
-        width: auto;
-      }
-      .masonry-grid_column {
-        padding-left: 1rem; /* gutter size */
-        background-clip: padding-box;
+      /* Prevent text hidden issue in some browsers */
+      input, textarea, select {
+        color: #1a202c !important; /* Explicit gray-900 */
+        background-color: #ffffff !important;
       }
     </style>
   <script type="importmap">
@@ -45,5 +41,6 @@
 </head>
   <body>
     <div id="root"></div>
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>
