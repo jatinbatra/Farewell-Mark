@@ -4,8 +4,7 @@ import { Category, Message } from '../types';
 import { CATEGORY_METADATA, LEADERSHIP_PRINCIPLES } from '../constants';
 import { messageService } from '../services/messageService';
 import { mockDb } from '../services/mockDb';
-import { GoogleGenAI } from "@google/genai";
-import { Sparkles, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 
 interface MessageFormProps {
   initialData?: Message;
@@ -20,8 +19,6 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
   const [category, setCategory] = useState<Category>(initialData?.category || Category.WISHES);
   const [content, setContent] = useState(initialData?.content || '');
   const [principle, setPrinciple] = useState(initialData?.leadershipPrinciple || LEADERSHIP_PRINCIPLES[0]);
-  const [isGeneratingText, setIsGeneratingText] = useState(false);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(initialData?.mediaUrl || null);
@@ -41,50 +38,32 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
       let finalMediaUrl = previewUrl || undefined;
       let finalMediaType: 'image' | 'video' = 'image';
 
-      // If we have a file and we are in Supabase mode, upload it
       if (mediaFile && mode === 'supabase') {
         const uploadedUrl = await messageService.uploadMedia(mediaFile);
         if (uploadedUrl) {
           finalMediaUrl = uploadedUrl;
           finalMediaType = mediaFile.type.startsWith('video') ? 'video' : 'image';
         }
-      } else if (previewUrl && previewUrl.startsWith('data:') && mode === 'local') {
-        // In local mode, we store the base64 directly
-        finalMediaUrl = previewUrl;
       }
 
+      const messagePayload = {
+        name, category, content, 
+        leadershipPrinciple: principle,
+        color: CATEGORY_METADATA[category].color,
+        mediaUrl: finalMediaUrl, 
+        mediaType: finalMediaType,
+      };
+
       if (initialData) {
-        if (mode === 'supabase') {
-          const updated = await messageService.updateMessage(initialData.id, {
-            name, category, content, leadershipPrinciple: principle,
-            color: CATEGORY_METADATA[category].color,
-            mediaUrl: finalMediaUrl, mediaType: finalMediaType,
-          });
-          if (updated) onUpdate(updated);
-        } else {
-          const updated = mockDb.updateMessage(initialData.id, {
-             name, category, content, leadershipPrinciple: principle,
-             color: CATEGORY_METADATA[category].color,
-             mediaUrl: finalMediaUrl, mediaType: finalMediaType,
-          });
-          if (updated) onUpdate(updated);
-        }
+        const updated = mode === 'supabase' 
+          ? await messageService.updateMessage(initialData.id, messagePayload)
+          : mockDb.updateMessage(initialData.id, messagePayload);
+        if (updated) onUpdate(updated);
       } else {
-        if (mode === 'supabase') {
-          const newMessage = await messageService.addMessage({
-            name, category, content, leadershipPrinciple: principle,
-            color: CATEGORY_METADATA[category].color,
-            mediaUrl: finalMediaUrl, mediaType: finalMediaType,
-          });
-          if (newMessage) onAdd(newMessage);
-        } else {
-          const newMessage = mockDb.addMessage({
-            name, category, content, leadershipPrinciple: principle,
-            color: CATEGORY_METADATA[category].color,
-            mediaUrl: finalMediaUrl, mediaType: finalMediaType,
-          });
-          onAdd(newMessage);
-        }
+        const added = mode === 'supabase'
+          ? await messageService.addMessage(messagePayload)
+          : mockDb.addMessage(messagePayload);
+        if (added) onAdd(added);
       }
     } catch (err: any) {
       console.error("Submission error:", err);
@@ -162,19 +141,23 @@ export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, on
       </div>
 
       {previewUrl && (
-        <div className="w-24 h-24 rounded-lg overflow-hidden border border-gray-200 relative group">
+        <div className="relative w-24 h-24 rounded-lg overflow-hidden border-2 border-[#FF9900] group">
           <img src={previewUrl} className="w-full h-full object-cover" alt="Preview" />
-          <button type="button" onClick={() => {setPreviewUrl(null); setMediaFile(null);}} className="absolute top-0 right-0 bg-black/50 text-white p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          <button 
+            type="button" 
+            onClick={() => {setPreviewUrl(null); setMediaFile(null);}} 
+            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <X className="w-3 h-3" />
           </button>
         </div>
       )}
 
       <div className="flex gap-3 pt-4">
-        <button type="button" onClick={onCancel} className="flex-1 px-6 py-3 border rounded-xl font-bold text-gray-600">Cancel</button>
-        <button type="submit" disabled={isSubmitting} className="flex-1 px-6 py-3 bg-[#FF9900] text-white rounded-xl font-bold shadow-lg disabled:opacity-50 flex items-center justify-center gap-2">
+        <button type="button" onClick={onCancel} className="flex-1 px-6 py-3 border rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
+        <button type="submit" disabled={isSubmitting} className="flex-1 px-6 py-3 bg-[#FF9900] text-white rounded-xl font-bold shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[#E68A00] transition-all">
           {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-          {initialData ? 'Update' : 'Post'}
+          {initialData ? 'Update' : 'Post to Card'}
         </button>
       </div>
     </form>
