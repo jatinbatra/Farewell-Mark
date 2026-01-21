@@ -84,7 +84,6 @@ const App: React.FC = () => {
       setFilter('All');
       document.getElementById('message-board')?.scrollIntoView({ behavior: 'smooth' });
     } else if (type === 'days') {
-      // Just a fun little pulse on the Day 1 stat
       confetti({
         particleCount: 50,
         spread: 60,
@@ -114,35 +113,31 @@ const App: React.FC = () => {
       
       <div id="message-board" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12 relative z-10 pb-20">
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-          {populatedCategories.length > 1 ? (
-            <div className="flex flex-wrap gap-2 justify-center order-2 md:order-1">
+          <div className="flex flex-wrap gap-2 justify-center order-2 md:order-1">
+            <button
+              onClick={() => setFilter('All')}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                filter === 'All' 
+                ? 'bg-[#232F3E] text-white shadow-lg' 
+                : 'bg-white text-[#232F3E] hover:bg-gray-100 border border-gray-200'
+              }`}
+            >
+              All ({messages.length})
+            </button>
+            {populatedCategories.map(cat => (
               <button
-                onClick={() => setFilter('All')}
+                key={cat}
+                onClick={() => setFilter(cat)}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  filter === 'All' 
-                  ? 'bg-[#232F3E] text-white shadow-lg' 
+                  filter === cat 
+                  ? 'bg-[#FF9900] text-white shadow-lg' 
                   : 'bg-white text-[#232F3E] hover:bg-gray-100 border border-gray-200'
                 }`}
               >
-                All ({messages.length})
+                {cat} ({getCategoryCount(cat)})
               </button>
-              {populatedCategories.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setFilter(cat)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    filter === cat 
-                    ? 'bg-[#FF9900] text-white shadow-lg' 
-                    : 'bg-white text-[#232F3E] hover:bg-gray-100 border border-gray-200'
-                  }`}
-                >
-                  {cat} ({getCategoryCount(cat)})
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="order-2 md:order-1" /> 
-          )}
+            ))}
+          </div>
 
           <div className="order-1 md:order-2 ml-auto">
             <button
@@ -209,7 +204,7 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-xl font-bold mb-2">Farewell Mark Sansbury</p>
           <p className="text-orange-400 font-medium mb-6 italic tracking-wide">Celebrating 4 years, 4 months, 29 days of Impact</p>
-          <p className="mb-4 text-gray-400">© 2024 Farewell Mark Sansbury - Built with Amazon Spirit</p>
+          <p className="mb-4 text-gray-400">© 2026 Farewell Mark Sansbury - Built with Amazon Spirit</p>
           <div className="flex justify-center gap-6 opacity-30">
              {Array.from({length: 3}).map((_, i) => (
                 <div key={i} className="flex gap-4">
