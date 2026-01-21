@@ -2,12 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { Box, Smile, AlertCircle, ExternalLink, Settings } from 'lucide-react';
+import { Box, Smile, AlertCircle, ExternalLink, Settings, Database, ServerOff } from 'lucide-react';
 import { Layout } from './components/Layout';
 import { Hero } from './components/Hero';
 import { MessageForm } from './components/MessageForm';
 import { MessageGrid } from './components/MessageGrid';
 import { messageService } from './services/messageService';
+import { mockDb } from './services/mockDb';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Message, Category } from './types';
 
@@ -17,18 +18,18 @@ const App: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
+  const [storageMode, setStorageMode] = useState<'supabase' | 'local'>(isSupabaseConfigured ? 'supabase' : 'local');
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setIsLoading(false);
-      return;
-    }
-
     const loadMessages = async () => {
       setIsLoading(true);
       try {
-        const data = await messageService.getMessages();
-        setMessages(data);
+        if (storageMode === 'supabase' && isSupabaseConfigured) {
+          const data = await messageService.getMessages();
+          setMessages(data);
+        } else {
+          setMessages(mockDb.getMessages());
+        }
       } catch (err) {
         console.error("Failed to load messages:", err);
       } finally {
@@ -38,93 +39,56 @@ const App: React.FC = () => {
 
     loadMessages();
 
-    // Set up Realtime Subscription
-    const channel = supabase
-      .channel('schema-db-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'messages' },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const newMessage = {
-              ...payload.new,
-              leadershipPrinciple: payload.new.leadership_principle,
-              authorId: payload.new.author_id,
-              mediaUrl: payload.new.media_url,
-              mediaType: payload.new.media_type
-            } as Message;
-            setMessages(prev => [newMessage, ...prev]);
-          } else if (payload.eventType === 'DELETE') {
-            setMessages(prev => prev.filter(m => m.id !== payload.old.id));
-          } else if (payload.eventType === 'UPDATE') {
-            const updated = {
-              ...payload.new,
-              leadershipPrinciple: payload.new.leadership_principle,
-              authorId: payload.new.author_id,
-              mediaUrl: payload.new.media_url,
-              mediaType: payload.new.media_type
-            } as Message;
-            setMessages(prev => prev.map(m => m.id === updated.id ? updated : m));
+    // Set up Realtime Subscription for Supabase if enabled
+    let channel: any;
+    if (storageMode === 'supabase' && isSupabaseConfigured) {
+      channel = supabase
+        .channel('schema-db-changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'messages' },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              const newItem = payload.new;
+              const newMessage = {
+                ...newItem,
+                leadershipPrinciple: newItem.leadership_principle,
+                authorId: newItem.author_id,
+                mediaUrl: newItem.media_url,
+                mediaType: newItem.media_type || 'image'
+              } as Message;
+              setMessages(prev => prev.some(m => m.id === newMessage.id) ? prev : [newMessage, ...prev]);
+            } else if (payload.eventType === 'DELETE') {
+              setMessages(prev => prev.filter(m => m.id !== payload.old.id));
+            } else if (payload.eventType === 'UPDATE') {
+              const updatedItem = payload.new;
+              const updated = {
+                ...updatedItem,
+                leadershipPrinciple: updatedItem.leadership_principle,
+                authorId: updatedItem.author_id,
+                mediaUrl: updatedItem.media_url,
+                mediaType: updatedItem.media_type || 'image'
+              } as Message;
+              setMessages(prev => prev.map(m => m.id === updated.id ? updated : m));
+            }
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
+    }
 
     return () => {
-      if (supabase) supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
     };
-  }, []);
-
-  if (!isSupabaseConfigured) {
-    return (
-      <div className="min-h-screen bg-[#232F3E] flex items-center justify-center p-6 text-white font-sans">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 text-[#232F3E]">
-          <div className="flex justify-center mb-6">
-            <div className="bg-orange-100 p-4 rounded-full">
-              <Settings className="w-12 h-12 text-[#FF9900] animate-spin-slow" />
-            </div>
-          </div>
-          <h1 className="text-2xl font-bold text-center mb-4">Configuration Required</h1>
-          <p className="text-gray-600 text-center mb-8">
-            To enable the live tribute board, you need to add your Supabase credentials to your environment variables.
-          </p>
-          
-          <div className="space-y-4 mb-8">
-            <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-              <AlertCircle className="w-5 h-5 text-orange-500 mt-0.5 shrink-0" />
-              <div className="text-sm">
-                <p className="font-bold">SUPABASE_URL</p>
-                <p className="text-gray-500">Missing from environment</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-              <AlertCircle className="w-5 h-5 text-orange-500 mt-0.5 shrink-0" />
-              <div className="text-sm">
-                <p className="font-bold">SUPABASE_ANON_KEY</p>
-                <p className="text-gray-500">Missing from environment</p>
-              </div>
-            </div>
-          </div>
-
-          <a 
-            href="https://supabase.com" 
-            target="_blank" 
-            className="w-full flex items-center justify-center gap-2 bg-[#FF9900] text-white py-4 rounded-xl font-bold hover:bg-[#E68A00] transition-all shadow-lg"
-          >
-            Setup Supabase <ExternalLink className="w-4 h-4" />
-          </a>
-          
-          <p className="mt-6 text-xs text-center text-gray-400 italic">
-            Add these keys to Vercel and redeploy to see the magic.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  }, [storageMode]);
 
   const handleAddMessage = (newMessage: Message) => {
     setIsFormOpen(false);
     
+    // Add to state immediately for responsiveness if using mock
+    if (storageMode === 'local') {
+      setMessages(prev => [newMessage, ...prev]);
+    }
+
     const isBanana = newMessage.content.toLowerCase().includes('banana');
     if (isBanana) {
       const duration = 3 * 1000;
@@ -149,11 +113,19 @@ const App: React.FC = () => {
   const handleUpdateMessage = (updatedMessage: Message) => {
     setIsFormOpen(false);
     setEditingMessage(undefined);
+    if (storageMode === 'local') {
+      setMessages(prev => prev.map(m => m.id === updatedMessage.id ? updatedMessage : m));
+    }
   };
 
   const handleDeleteMessage = async (id: string) => {
     if (window.confirm('Are you sure you want to remove your message?')) {
-      await messageService.deleteMessage(id);
+      if (storageMode === 'supabase') {
+        await messageService.deleteMessage(id);
+      } else {
+        mockDb.deleteMessage(id);
+        setMessages(prev => prev.filter(m => m.id !== id));
+      }
     }
   };
 
@@ -162,51 +134,43 @@ const App: React.FC = () => {
     setIsFormOpen(true);
   };
 
-  const onNavAction = (action: 'messages' | 'memories' | 'stats') => {
-    if (action === 'messages') {
-      setFilter('All');
-      document.getElementById('message-board')?.scrollIntoView({ behavior: 'smooth' });
-    } else if (action === 'memories') {
-      setFilter(Category.MEMORY);
-      document.getElementById('message-board')?.scrollIntoView({ behavior: 'smooth' });
-    } else if (action === 'stats') {
-      document.getElementById('stats-grid')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  };
-
-  const handleStatClick = (type: 'messages' | 'members' | 'days') => {
-    if (type === 'messages' || type === 'members') {
-      setFilter('All');
-      document.getElementById('message-board')?.scrollIntoView({ behavior: 'smooth' });
-    } else if (type === 'days') {
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.3, x: 0.8 },
-        colors: ['#FF9900', '#FFFFFF']
-      });
-    }
-  };
-
   const filteredMessages = filter === 'All' 
     ? messages 
     : messages.filter(m => m.category === filter);
 
   const getCategoryCount = (cat: Category) => messages.filter(m => m.category === cat).length;
   
-  const visibleCategories = Object.values(Category).filter(cat => 
-    getCategoryCount(cat) > 0 || filter === cat
-  );
-
   return (
-    <Layout onNavAction={onNavAction}>
+    <Layout onNavAction={(action) => {
+      if (action === 'messages') setFilter('All');
+      if (action === 'memories') setFilter(Category.MEMORY);
+      document.getElementById(action === 'stats' ? 'stats-grid' : 'message-board')?.scrollIntoView({ behavior: 'smooth' });
+    }}>
+      
+      {/* Dynamic Storage Warning Banner */}
+      {!isSupabaseConfigured && (
+        <div className="bg-amber-50 border-b border-amber-200 py-2 px-4 flex items-center justify-center gap-3 text-amber-800 text-xs font-medium">
+          <ServerOff className="w-4 h-4" />
+          <span>Supabase not configured. Using <strong>Local Storage</strong>. Your messages are saved on this device only.</span>
+          <button 
+            onClick={() => window.location.reload()}
+            className="underline font-bold hover:text-amber-900 ml-2"
+          >
+            Check Connection
+          </button>
+        </div>
+      )}
+
       <Hero 
         stats={{
           totalMessages: messages.length,
           teamMembers: new Set(messages.map(m => m.name)).size,
           daysAtAmazon: 1612 
         }} 
-        onStatClick={handleStatClick}
+        onStatClick={(type) => {
+          if (type === 'days') confetti({ particleCount: 50, spread: 60, origin: { y: 0.3, x: 0.8 }, colors: ['#FF9900', '#FFFFFF'] });
+          else { setFilter('All'); document.getElementById('message-board')?.scrollIntoView({ behavior: 'smooth' }); }
+        }}
       />
       
       <div id="message-board" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12 relative z-10 pb-20">
@@ -215,21 +179,17 @@ const App: React.FC = () => {
             <button
               onClick={() => setFilter('All')}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                filter === 'All' 
-                ? 'bg-[#232F3E] text-white shadow-lg' 
-                : 'bg-white text-[#232F3E] hover:bg-gray-100 border border-gray-200'
+                filter === 'All' ? 'bg-[#232F3E] text-white shadow-lg' : 'bg-white text-[#232F3E] hover:bg-gray-100 border border-gray-200'
               }`}
             >
               All ({messages.length})
             </button>
-            {visibleCategories.map(cat => (
+            {Object.values(Category).filter(cat => getCategoryCount(cat) > 0 || filter === cat).map(cat => (
               <button
                 key={cat}
                 onClick={() => setFilter(cat)}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  filter === cat 
-                  ? 'bg-[#FF9900] text-white shadow-lg' 
-                  : 'bg-white text-[#232F3E] hover:bg-gray-100 border border-gray-200'
+                  filter === cat ? 'bg-[#FF9900] text-white shadow-lg' : 'bg-white text-[#232F3E] hover:bg-gray-100 border border-gray-200'
                 }`}
               >
                 {cat} ({getCategoryCount(cat)})
@@ -239,10 +199,7 @@ const App: React.FC = () => {
 
           <div className="order-1 md:order-2 ml-auto">
             <button
-              onClick={() => {
-                setEditingMessage(undefined);
-                setIsFormOpen(true);
-              }}
+              onClick={() => { setEditingMessage(undefined); setIsFormOpen(true); }}
               className="bg-[#FF9900] hover:bg-[#E68A00] text-white px-8 py-3 rounded-full font-bold shadow-xl transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2"
             >
               <span className="text-xl">+</span> Add to the Card
@@ -266,16 +223,12 @@ const App: React.FC = () => {
         <AnimatePresence>
           {isFormOpen && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
               onClick={(e) => e.target === e.currentTarget && setIsFormOpen(false)}
             >
               <motion.div
-                initial={{ scale: 0.9, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.9, y: 20 }}
+                initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
                 className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden"
               >
                 <div className="p-8">
@@ -283,13 +236,8 @@ const App: React.FC = () => {
                     <h2 className="text-2xl font-bold text-[#232F3E]">
                       {editingMessage ? 'Update Your Message' : 'Sign the Farewell Card'}
                     </h2>
-                    <button 
-                      onClick={() => setIsFormOpen(false)}
-                      className="text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
+                    <button onClick={() => setIsFormOpen(false)} className="text-gray-400 hover:text-gray-600">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   </div>
                   <MessageForm 
@@ -297,6 +245,7 @@ const App: React.FC = () => {
                     onAdd={handleAddMessage} 
                     onUpdate={handleUpdateMessage}
                     onCancel={() => setIsFormOpen(false)} 
+                    mode={storageMode}
                   />
                 </div>
               </motion.div>
@@ -309,15 +258,7 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-xl font-bold mb-2">Farewell Mark Sansbury</p>
           <p className="text-orange-400 font-medium mb-6 italic tracking-wide">Celebrating 4 years, 4 months, 29 days of Impact</p>
-          <p className="mb-4 text-gray-400">© 2026 Farewell Mark Sansbury - Built with Amazon Spirit</p>
-          <div className="flex justify-center gap-6 opacity-30">
-             {Array.from({length: 3}).map((_, i) => (
-                <div key={i} className="flex gap-4">
-                  <Box className="w-5 h-5" />
-                  <Smile className="w-5 h-5" />
-                </div>
-             ))}
-          </div>
+          <p className="mb-4 text-gray-400 text-sm">© 2026 Farewell Mark Sansbury - Built with Amazon Spirit</p>
           <p className="mt-6 text-sm italic text-gray-500">"Work Hard, Have Fun, Make History."</p>
         </div>
       </footer>

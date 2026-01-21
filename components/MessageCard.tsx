@@ -1,10 +1,10 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Message } from '../types';
 import { CATEGORY_METADATA } from '../constants';
 import { messageService } from '../services/messageService';
-import { Play, Pencil, Trash2, User } from 'lucide-react';
+import { Pencil, Trash2, User, ImageOff, ExternalLink, ShieldAlert, RotateCw } from 'lucide-react';
 
 interface MessageCardProps {
   message: Message;
@@ -15,7 +15,20 @@ interface MessageCardProps {
 export const MessageCard: React.FC<MessageCardProps> = ({ message, onEdit, onDelete }) => {
   const { icon } = CATEGORY_METADATA[message.category];
   const isAuthor = message.authorId === messageService.getUserId();
+  const [imageError, setImageError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   
+  // Clean URL - removing specific security flags that might interfere with public bucket access
+  const getMediaUrl = () => {
+    if (!message.mediaUrl) return null;
+    return `${message.mediaUrl}${message.mediaUrl.includes('?') ? '&' : '?'}v=${message.timestamp}-${retryCount}`;
+  };
+
+  const handleRetry = () => {
+    setImageError(false);
+    setRetryCount(prev => prev + 1);
+  };
+
   return (
     <div 
       className="group relative bg-white p-6 rounded-sm shadow-sm hover:shadow-2xl transition-all duration-300 transform"
@@ -31,7 +44,7 @@ export const MessageCard: React.FC<MessageCardProps> = ({ message, onEdit, onDel
         <span className="text-[#232F3E]">{icon}</span>
       </div>
 
-      {/* Unique Author Identity Badge */}
+      {/* Author Badge */}
       {isAuthor && (
         <div className="absolute -top-2 left-4 bg-[#FF9900] text-[#232F3E] text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm flex items-center gap-1 z-10 border border-black/10">
           <User className="w-2.5 h-2.5" />
@@ -39,21 +52,13 @@ export const MessageCard: React.FC<MessageCardProps> = ({ message, onEdit, onDel
         </div>
       )}
 
-      {/* Edit/Delete Controls */}
+      {/* Controls */}
       {isAuthor && (
         <div className="absolute -bottom-2 -left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-          <button 
-            onClick={() => onEdit?.(message)}
-            className="p-1.5 bg-white shadow-md rounded-full text-blue-600 hover:bg-blue-50 transition-colors border border-gray-100"
-            title="Edit message"
-          >
+          <button onClick={() => onEdit?.(message)} className="p-1.5 bg-white shadow-md rounded-full text-blue-600 hover:bg-blue-50 border border-gray-100">
             <Pencil className="w-3.5 h-3.5" />
           </button>
-          <button 
-            onClick={() => onDelete?.(message.id)}
-            className="p-1.5 bg-white shadow-md rounded-full text-red-600 hover:bg-red-50 transition-colors border border-gray-100"
-            title="Delete message"
-          >
+          <button onClick={() => onDelete?.(message.id)} className="p-1.5 bg-white shadow-md rounded-full text-red-600 hover:bg-red-50 border border-gray-100">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -73,25 +78,47 @@ export const MessageCard: React.FC<MessageCardProps> = ({ message, onEdit, onDel
       </div>
 
       {message.mediaUrl && (
-        <div className="mb-4 rounded-lg overflow-hidden bg-black/5 relative group/media">
+        <div className="mb-4 rounded-lg overflow-hidden bg-black/5 relative min-h-[140px] flex flex-col items-center justify-center border border-black/5">
           {message.mediaType === 'video' ? (
-            <div className="relative aspect-video flex items-center justify-center bg-gray-900">
-              <video src={message.mediaUrl} className="w-full h-full object-cover opacity-80" controls />
-              {!message.mediaUrl && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                   <div className="w-12 h-12 bg-white/30 backdrop-blur rounded-full flex items-center justify-center group-hover/media:scale-110 transition-all">
-                      <Play className="w-6 h-6 text-white fill-white" />
-                   </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <img 
-              src={message.mediaUrl} 
-              alt="Memory" 
-              className="w-full h-auto object-cover max-h-60"
-              loading="lazy"
+            <video 
+              src={getMediaUrl() || ''} 
+              className="w-full aspect-video object-cover" 
+              controls 
+              preload="metadata"
             />
+          ) : (
+            <>
+              {imageError ? (
+                <div className="flex flex-col items-center gap-2 py-8 px-4 text-center">
+                  <ShieldAlert className="w-8 h-8 text-gray-300" />
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Image Access Denied</p>
+                  <div className="flex gap-2 mt-2">
+                    <button 
+                      onClick={handleRetry}
+                      className="text-[9px] font-bold bg-white border border-gray-200 px-3 py-1.5 rounded flex items-center gap-1"
+                    >
+                      <RotateCw className="w-3 h-3" /> Retry
+                    </button>
+                    <a 
+                      href={message.mediaUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-[9px] font-bold bg-[#FF9900] text-white px-3 py-1.5 rounded flex items-center gap-1"
+                    >
+                      <ExternalLink className="w-3 h-3" /> Open
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <img 
+                  key={`${message.id}-${retryCount}`}
+                  src={getMediaUrl() || ''} 
+                  alt="Farewell Memory" 
+                  className="w-full h-auto object-cover max-h-72"
+                  onError={() => setImageError(true)}
+                />
+              )}
+            </>
           )}
         </div>
       )}
@@ -101,8 +128,7 @@ export const MessageCard: React.FC<MessageCardProps> = ({ message, onEdit, onDel
         <span>{formatDistanceToNow(message.timestamp, { addSuffix: true })}</span>
       </div>
 
-      {/* Tape Effect Decorative Element */}
-      <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/40 backdrop-blur-sm -rotate-2 border border-white/20"></div>
+      <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/40 backdrop-blur-sm -rotate-2 border border-white/20 pointer-events-none"></div>
     </div>
   );
 };

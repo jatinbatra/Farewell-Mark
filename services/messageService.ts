@@ -123,22 +123,44 @@ export const messageService = {
   },
 
   uploadMedia: async (file: File): Promise<string | null> => {
-    if (!isSupabaseConfigured) return null;
+    if (!isSupabaseConfigured) {
+       console.error("Cannot upload: Supabase not configured.");
+       return null;
+    }
     
     const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
     const filePath = `tributes/${fileName}`;
+
+    console.log(`Starting upload to 'media' bucket: ${filePath}`);
 
     const { error: uploadError } = await supabase.storage
       .from('media')
-      .upload(filePath, file);
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
 
     if (uploadError) {
-      console.error("Error uploading file:", uploadError);
+      console.error("Supabase Storage Error:", uploadError.message);
+      alert(`Upload failed: ${uploadError.message}. Make sure your bucket is named exactly 'media'.`);
       return null;
     }
 
     const { data } = supabase.storage.from('media').getPublicUrl(filePath);
+    
+    if (!data?.publicUrl) {
+      console.error("Failed to generate public URL.");
+      return null;
+    }
+
+    // Verify it's a real URL
+    if (!data.publicUrl.startsWith('http')) {
+      console.error("Public URL generated is not absolute:", data.publicUrl);
+      return null;
+    }
+
+    console.log("Upload success! URL:", data.publicUrl);
     return data.publicUrl;
   }
 };
