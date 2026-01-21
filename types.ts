@@ -11,6 +11,7 @@ export enum Category {
 
 export interface Message {
   id: string;
+  authorId: string;
   name: string;
   category: Category;
   content: string;

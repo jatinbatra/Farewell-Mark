@@ -6,9 +6,11 @@ import { MessageCard } from './MessageCard';
 
 interface MessageGridProps {
   messages: Message[];
+  onEdit?: (message: Message) => void;
+  onDelete?: (id: string) => void;
 }
 
-export const MessageGrid: React.FC<MessageGridProps> = ({ messages }) => {
+export const MessageGrid: React.FC<MessageGridProps> = ({ messages, onEdit, onDelete }) => {
   if (messages.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -19,7 +21,6 @@ export const MessageGrid: React.FC<MessageGridProps> = ({ messages }) => {
     );
   }
 
-  // Pure CSS-based masonry approach for reliability
   return (
     <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
       <AnimatePresence mode="popLayout">
@@ -39,7 +40,11 @@ export const MessageGrid: React.FC<MessageGridProps> = ({ messages }) => {
             }}
             className="break-inside-avoid"
           >
-            <MessageCard message={msg} />
+            <MessageCard 
+              message={msg} 
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
           </motion.div>
         ))}
       </AnimatePresence>

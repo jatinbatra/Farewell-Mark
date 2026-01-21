@@ -7,19 +7,21 @@ import { GoogleGenAI } from "@google/genai";
 import { Sparkles, Image as ImageIcon, Loader2 } from 'lucide-react';
 
 interface MessageFormProps {
+  initialData?: Message;
   onAdd: (message: Message) => void;
+  onUpdate: (message: Message) => void;
   onCancel: () => void;
 }
 
-export const MessageForm: React.FC<MessageFormProps> = ({ onAdd, onCancel }) => {
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState<Category>(Category.WISHES);
-  const [content, setContent] = useState('');
-  const [principle, setPrinciple] = useState(LEADERSHIP_PRINCIPLES[0]);
+export const MessageForm: React.FC<MessageFormProps> = ({ initialData, onAdd, onUpdate, onCancel }) => {
+  const [name, setName] = useState(initialData?.name || '');
+  const [category, setCategory] = useState<Category>(initialData?.category || Category.WISHES);
+  const [content, setContent] = useState(initialData?.content || '');
+  const [principle, setPrinciple] = useState(initialData?.leadershipPrinciple || LEADERSHIP_PRINCIPLES[0]);
   const [isGeneratingText, setIsGeneratingText] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(initialData?.mediaUrl || null);
   
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -81,17 +83,29 @@ export const MessageForm: React.FC<MessageFormProps> = ({ onAdd, onCancel }) => 
     e.preventDefault();
     if (!name || !content) return;
 
-    const newMessage = mockDb.addMessage({
-      name,
-      category,
-      content,
-      leadershipPrinciple: principle,
-      color: CATEGORY_METADATA[category].color,
-      mediaUrl: previewUrl || undefined,
-      mediaType: mediaFile?.type.startsWith('video') ? 'video' : 'image',
-    });
-
-    onAdd(newMessage);
+    if (initialData) {
+      const updated = mockDb.updateMessage(initialData.id, {
+        name,
+        category,
+        content,
+        leadershipPrinciple: principle,
+        color: CATEGORY_METADATA[category].color,
+        mediaUrl: previewUrl || undefined,
+        mediaType: mediaFile?.type.startsWith('video') ? 'video' : (initialData.mediaType || 'image'),
+      });
+      if (updated) onUpdate(updated);
+    } else {
+      const newMessage = mockDb.addMessage({
+        name,
+        category,
+        content,
+        leadershipPrinciple: principle,
+        color: CATEGORY_METADATA[category].color,
+        mediaUrl: previewUrl || undefined,
+        mediaType: mediaFile?.type.startsWith('video') ? 'video' : 'image',
+      });
+      onAdd(newMessage);
+    }
   };
 
   const generateAIPun = async () => {
@@ -240,7 +254,7 @@ export const MessageForm: React.FC<MessageFormProps> = ({ onAdd, onCancel }) => 
           type="submit"
           className="flex-1 px-6 py-3 bg-[#FF9900] hover:bg-[#E68A00] text-white rounded-xl font-bold shadow-lg shadow-orange-200 transition-all transform active:scale-95"
         >
-          Add to the Card
+          {initialData ? 'Update Message' : 'Add to the Card'}
         </button>
       </div>
     </form>

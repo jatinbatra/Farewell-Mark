@@ -3,14 +3,18 @@ import React from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Message } from '../types';
 import { CATEGORY_METADATA } from '../constants';
-import { Play } from 'lucide-react';
+import { mockDb } from '../services/mockDb';
+import { Play, Pencil, Trash2, User } from 'lucide-react';
 
 interface MessageCardProps {
   message: Message;
+  onEdit?: (message: Message) => void;
+  onDelete?: (id: string) => void;
 }
 
-export const MessageCard: React.FC<MessageCardProps> = ({ message }) => {
+export const MessageCard: React.FC<MessageCardProps> = ({ message, onEdit, onDelete }) => {
   const { icon } = CATEGORY_METADATA[message.category];
+  const isAuthor = message.authorId === mockDb.getUserId();
   
   return (
     <div 
@@ -23,9 +27,37 @@ export const MessageCard: React.FC<MessageCardProps> = ({ message }) => {
       }}
     >
       {/* Category Badge */}
-      <div className="absolute -top-3 -right-3 bg-white p-2 rounded-lg shadow-md border border-gray-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+      <div className="absolute -top-3 -right-3 bg-white p-2 rounded-lg shadow-md border border-gray-100 flex items-center justify-center group-hover:scale-110 transition-transform z-10">
         <span className="text-[#232F3E]">{icon}</span>
       </div>
+
+      {/* Unique Author Identity Badge */}
+      {isAuthor && (
+        <div className="absolute -top-2 left-4 bg-[#FF9900] text-[#232F3E] text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm flex items-center gap-1 z-10 border border-black/10">
+          <User className="w-2.5 h-2.5" />
+          Your Note
+        </div>
+      )}
+
+      {/* Edit/Delete Controls */}
+      {isAuthor && (
+        <div className="absolute -bottom-2 -left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+          <button 
+            onClick={() => onEdit?.(message)}
+            className="p-1.5 bg-white shadow-md rounded-full text-blue-600 hover:bg-blue-50 transition-colors border border-gray-100"
+            title="Edit message"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button 
+            onClick={() => onDelete?.(message.id)}
+            className="p-1.5 bg-white shadow-md rounded-full text-red-600 hover:bg-red-50 transition-colors border border-gray-100"
+            title="Delete message"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       <div className="mb-4">
         <h4 className="font-bold text-[#232F3E] text-lg leading-tight">{message.name}</h4>

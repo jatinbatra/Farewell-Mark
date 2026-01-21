@@ -1,16 +1,44 @@
 
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion, useSpring, useTransform } from 'framer-motion';
 import { Box, Users, Clock, MessageCircle } from 'lucide-react';
 import { Stats } from '../types';
 
 interface HeroProps {
   stats: Stats;
+  onStatClick?: (type: 'messages' | 'members' | 'days') => void;
 }
 
-export const Hero: React.FC<HeroProps> = ({ stats }) => {
+const AnimatedCounter = ({ value }: { value: number }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    let start = 0;
+    const end = value;
+    if (start === end) return;
+
+    let totalDuration = 1500;
+    let increment = end / (totalDuration / 16);
+    
+    let timer = setInterval(() => {
+      start += increment;
+      if (start >= end) {
+        setDisplayValue(end);
+        clearInterval(timer);
+      } else {
+        setDisplayValue(Math.floor(start));
+      }
+    }, 16);
+
+    return () => clearInterval(timer);
+  }, [value]);
+
+  return <span>{displayValue.toLocaleString()}</span>;
+};
+
+export const Hero: React.FC<HeroProps> = ({ stats, onStatClick }) => {
   return (
-    <div className="relative bg-[#232F3E] text-white pt-20 pb-32 overflow-hidden">
+    <div id="hero-section" className="relative bg-[#232F3E] text-white pt-20 pb-32 overflow-hidden">
       {/* Decorative background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-10">
         {Array.from({ length: 20 }).map((_, i) => (
@@ -47,7 +75,7 @@ export const Hero: React.FC<HeroProps> = ({ stats }) => {
             <motion.div
               animate={{ y: [0, -10, 0] }}
               transition={{ duration: 2, repeat: Infinity }}
-              className="absolute -top-4 -right-4 bg-white text-[#232F3E] p-2 rounded-full shadow-lg"
+              className="absolute -top-4 -right-4 bg-white text-[#232F3E] p-2 rounded-full shadow-lg text-xl"
             >
               🍌
             </motion.div>
@@ -74,29 +102,32 @@ export const Hero: React.FC<HeroProps> = ({ stats }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="text-lg text-gray-300 banana-accent"
+            className="text-lg text-gray-300 banana-accent italic"
           >
-            Going Bananas Without You 🍌
+            "Going Bananas Without You" 🍌
           </motion.p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16 w-full max-w-4xl">
+          <div id="stats-grid" className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16 w-full max-w-4xl">
             <StatCard 
               icon={<MessageCircle className="w-6 h-6 text-[#FF9900]" />}
               label="Total Messages"
               value={stats.totalMessages}
               delay={0.2}
+              onClick={() => onStatClick?.('messages')}
             />
             <StatCard 
               icon={<Users className="w-6 h-6 text-[#FF9900]" />}
               label="Team Contributors"
               value={stats.teamMembers}
               delay={0.3}
+              onClick={() => onStatClick?.('members')}
             />
             <StatCard 
               icon={<Clock className="w-6 h-6 text-[#FF9900]" />}
-              label="day 1s at amazon"
+              label="Day 1s at Amazon"
               value={stats.daysAtAmazon}
               delay={0.4}
+              onClick={() => onStatClick?.('days')}
             />
           </div>
         </div>
@@ -108,16 +139,20 @@ export const Hero: React.FC<HeroProps> = ({ stats }) => {
   );
 };
 
-const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; delay: number }> = ({ icon, label, value, delay }) => (
-  <motion.div
+const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; delay: number; onClick?: () => void }> = ({ icon, label, value, delay, onClick }) => (
+  <motion.button
     initial={{ opacity: 0, scale: 0.9 }}
     whileInView={{ opacity: 1, scale: 1 }}
+    whileHover={{ y: -5, borderColor: 'rgba(255, 153, 0, 0.4)', backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
     viewport={{ once: true }}
-    transition={{ delay }}
-    className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 flex flex-col items-center"
+    transition={{ delay, duration: 0.2 }}
+    onClick={onClick}
+    className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 flex flex-col items-center group transition-all"
   >
-    <div className="mb-3">{icon}</div>
-    <div className="text-3xl font-bold mb-1">{value}</div>
-    <div className="text-xs text-gray-400 uppercase tracking-widest">{label}</div>
-  </motion.div>
+    <div className="mb-3 transform group-hover:scale-110 transition-transform">{icon}</div>
+    <div className="text-3xl font-bold mb-1">
+      <AnimatedCounter value={value} />
+    </div>
+    <div className="text-xs text-gray-400 uppercase tracking-widest group-hover:text-orange-400 transition-colors font-semibold">{label}</div>
+  </motion.button>
 );

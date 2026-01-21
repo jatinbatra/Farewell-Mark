@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { Box, Smile } from 'lucide-react';
@@ -14,6 +14,7 @@ const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [filter, setFilter] = useState<Category | 'All'>('All');
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingMessage, setEditingMessage] = useState<Message | undefined>(undefined);
 
   useEffect(() => {
     mockDb.seedIfEmpty();
@@ -29,7 +30,7 @@ const App: React.FC = () => {
     if (isBanana) {
       const duration = 3 * 1000;
       const animationEnd = Date.now() + duration;
-      const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+      const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100 };
 
       const interval: any = setInterval(function() {
         const timeLeft = animationEnd - Date.now();
@@ -47,29 +48,72 @@ const App: React.FC = () => {
     }
   };
 
+  const handleUpdateMessage = (updatedMessage: Message) => {
+    setMessages(prev => prev.map(m => m.id === updatedMessage.id ? updatedMessage : m));
+    setIsFormOpen(false);
+    setEditingMessage(undefined);
+  };
+
+  const handleDeleteMessage = (id: string) => {
+    if (window.confirm('Are you sure you want to remove your message?')) {
+      if (mockDb.deleteMessage(id)) {
+        setMessages(prev => prev.filter(m => m.id !== id));
+      }
+    }
+  };
+
+  const handleEditMessage = (message: Message) => {
+    setEditingMessage(message);
+    setIsFormOpen(true);
+  };
+
+  const onNavAction = (action: 'messages' | 'memories' | 'stats') => {
+    if (action === 'messages') {
+      setFilter('All');
+      document.getElementById('message-board')?.scrollIntoView({ behavior: 'smooth' });
+    } else if (action === 'memories') {
+      setFilter(Category.MEMORY);
+      document.getElementById('message-board')?.scrollIntoView({ behavior: 'smooth' });
+    } else if (action === 'stats') {
+      document.getElementById('stats-grid')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  const handleStatClick = (type: 'messages' | 'members' | 'days') => {
+    if (type === 'messages' || type === 'members') {
+      setFilter('All');
+      document.getElementById('message-board')?.scrollIntoView({ behavior: 'smooth' });
+    } else if (type === 'days') {
+      // Just a fun little pulse on the Day 1 stat
+      confetti({
+        particleCount: 50,
+        spread: 60,
+        origin: { y: 0.3, x: 0.8 },
+        colors: ['#FF9900', '#FFFFFF']
+      });
+    }
+  };
+
   const filteredMessages = filter === 'All' 
     ? messages 
     : messages.filter(m => m.category === filter);
 
-  // Helper to get count of messages in a category
   const getCategoryCount = (cat: Category) => messages.filter(m => m.category === cat).length;
-
-  // Only show categories that have at least one message
   const populatedCategories = Object.values(Category).filter(cat => getCategoryCount(cat) > 0);
 
   return (
-    <Layout>
+    <Layout onNavAction={onNavAction}>
       <Hero 
         stats={{
           totalMessages: messages.length,
           teamMembers: new Set(messages.map(m => m.name)).size,
           daysAtAmazon: 1612 
         }} 
+        onStatClick={handleStatClick}
       />
       
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12 relative z-10 pb-20">
+      <div id="message-board" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12 relative z-10 pb-20">
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-          {/* Only show filter bar if there are messages spread across at least 2 categories */}
           {populatedCategories.length > 1 ? (
             <div className="flex flex-wrap gap-2 justify-center order-2 md:order-1">
               <button
@@ -97,12 +141,15 @@ const App: React.FC = () => {
               ))}
             </div>
           ) : (
-            <div className="order-2 md:order-1" /> // Spacer
+            <div className="order-2 md:order-1" /> 
           )}
 
           <div className="order-1 md:order-2 ml-auto">
             <button
-              onClick={() => setIsFormOpen(true)}
+              onClick={() => {
+                setEditingMessage(undefined);
+                setIsFormOpen(true);
+              }}
               className="bg-[#FF9900] hover:bg-[#E68A00] text-white px-8 py-3 rounded-full font-bold shadow-xl transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2"
             >
               <span className="text-xl">+</span> Add to the Card
@@ -110,7 +157,11 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <MessageGrid messages={filteredMessages} />
+        <MessageGrid 
+          messages={filteredMessages} 
+          onEdit={handleEditMessage}
+          onDelete={handleDeleteMessage}
+        />
 
         <AnimatePresence>
           {isFormOpen && (
@@ -129,7 +180,9 @@ const App: React.FC = () => {
               >
                 <div className="p-8">
                   <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold text-[#232F3E]">Sign the Farewell Card</h2>
+                    <h2 className="text-2xl font-bold text-[#232F3E]">
+                      {editingMessage ? 'Update Your Message' : 'Sign the Farewell Card'}
+                    </h2>
                     <button 
                       onClick={() => setIsFormOpen(false)}
                       className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -139,7 +192,12 @@ const App: React.FC = () => {
                       </svg>
                     </button>
                   </div>
-                  <MessageForm onAdd={handleAddMessage} onCancel={() => setIsFormOpen(false)} />
+                  <MessageForm 
+                    initialData={editingMessage}
+                    onAdd={handleAddMessage} 
+                    onUpdate={handleUpdateMessage}
+                    onCancel={() => setIsFormOpen(false)} 
+                  />
                 </div>
               </motion.div>
             </motion.div>
